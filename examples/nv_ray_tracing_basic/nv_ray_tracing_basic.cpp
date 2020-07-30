@@ -192,6 +192,7 @@ public:
 	*/
 	void createBottomLevelAccelerationStructure(const VkGeometryNV* geometries)
 	{
+		std::cout << "Creating bottom level acceleration struction." << std::endl;
 		VkAccelerationStructureInfoNV accelerationStructureInfo{};
 		accelerationStructureInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_INFO_NV;
 		accelerationStructureInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_NV;
@@ -231,6 +232,7 @@ public:
 	*/
 	void createTopLevelAccelerationStructure()
 	{
+		std::cout << "Creating top level acceleration struction." << std::endl;
 		VkAccelerationStructureInfoNV accelerationStructureInfo{};
 		accelerationStructureInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_INFO_NV;
 		accelerationStructureInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_NV;
@@ -332,7 +334,7 @@ public:
 		
 		std::string model_file_path = "models/" + model_name + ".dae";
 		scene.loadFromFile(getAssetPath() + model_file_path, vertexLayout, &modelCI, vulkanDevice, queue);
-		std::cout << "Rendering " << model_name << std::endl;
+		std::cout << "Creating scene for " << model_name << std::endl;
 
 		/*
 			Create the bottom level acceleration structure containing the actual scene geometry
@@ -478,6 +480,7 @@ public:
 		Create the Shader Binding Table that binds the programs and top-level acceleration structure
 	*/
 	void createShaderBindingTable() {
+		std::cout << "Creating shader binding table." << std::endl;
 		// Create buffer for the shader binding table
 		const uint32_t sbtSize = rayTracingProperties.shaderGroupHandleSize * NUM_SHADER_GROUPS;
 		VK_CHECK_RESULT(vulkanDevice->createBuffer(
@@ -548,6 +551,7 @@ public:
 	*/
 	void createRayTracingPipeline()
 	{
+		std::cout << "Creating ray tracing pipeline." << std::endl;
 		VkDescriptorSetLayoutBinding accelerationStructureLayoutBinding{};
 		accelerationStructureLayoutBinding.binding = 0;
 		accelerationStructureLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV;
@@ -777,6 +781,7 @@ public:
 
 	void draw()
 	{
+		std::cout << "Drawing." << std::endl;
 			
 		/*
 			Copy framebuffer image to host visible image
@@ -878,7 +883,8 @@ public:
 			Save host visible framebuffer image to disk (ppm format)
 		*/
 
-			const char* filename = "nv_trace.ppm";
+			std::string filename = "nv_trace_" + model_name + ".ppm";
+			std::cout << "Creating " << filename << std::endl;
 			std::ofstream file(filename, std::ios::out | std::ios::binary);
 
 			// ppm header
@@ -948,6 +954,8 @@ int main(const int argc, const char *argv[])													    \
 	for (size_t i = 0; i < argc; i++) { 
 		VulkanExample::args.push_back(argv[i]); 
 	}; 
+	
+	std::cout << "(single non-recursive trace)" << std::endl;
 	vulkanExample = new VulkanExample();															\
 	vulkanExample->initVulkan();																	\
 	vulkanExample->setupWindow();					 												\

@@ -657,7 +657,7 @@ VulkanExampleBase::VulkanExampleBase(bool enableValidation)
 			if (args.size() > i + 1) {
 				model_name = args[i + 1];
 			}
-			std::cout << "Selected " << model_name << std::endl;
+			std::cout << "Rendering " << model_name << std::endl;
 		}
 	}
 

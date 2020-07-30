@@ -651,28 +651,28 @@ public:
 
 		VK_CHECK_RESULT(vkBeginCommandBuffer(commandBuffer, &cmdBufInfo));
 
-			/*
-				Dispatch the ray tracing commands
-			*/
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, pipeline);
-			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, pipelineLayout, 0, 1, &descriptorSet, 0, 0);
+		/*
+			Dispatch the ray tracing commands
+		*/
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, pipeline);
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, pipelineLayout, 0, 1, &descriptorSet, 0, 0);
 
-			// Calculate shader binding offsets, which is pretty straight forward in our example
-			VkDeviceSize bindingOffsetRayGenShader = rayTracingProperties.shaderGroupHandleSize * INDEX_RAYGEN;
-			VkDeviceSize bindingOffsetMissShader = rayTracingProperties.shaderGroupHandleSize * INDEX_MISS;
-			VkDeviceSize bindingOffsetHitShader = rayTracingProperties.shaderGroupHandleSize * INDEX_CLOSEST_HIT;
-			VkDeviceSize bindingStride = rayTracingProperties.shaderGroupHandleSize;
+		// Calculate shader binding offsets, which is pretty straight forward in our example
+		VkDeviceSize bindingOffsetRayGenShader = rayTracingProperties.shaderGroupHandleSize * INDEX_RAYGEN;
+		VkDeviceSize bindingOffsetMissShader = rayTracingProperties.shaderGroupHandleSize * INDEX_MISS;
+		VkDeviceSize bindingOffsetHitShader = rayTracingProperties.shaderGroupHandleSize * INDEX_CLOSEST_HIT;
+		VkDeviceSize bindingStride = rayTracingProperties.shaderGroupHandleSize;
 
-			vkCmdTraceRaysNV(commandBuffer,
-				shaderBindingTable.buffer, bindingOffsetRayGenShader,
-				shaderBindingTable.buffer, bindingOffsetMissShader, bindingStride,
-				shaderBindingTable.buffer, bindingOffsetHitShader, bindingStride,
-				VK_NULL_HANDLE, 0, 0,
-				width, height, 1);
+		vkCmdTraceRaysNV(commandBuffer,
+			shaderBindingTable.buffer, bindingOffsetRayGenShader,
+			shaderBindingTable.buffer, bindingOffsetMissShader, bindingStride,
+			shaderBindingTable.buffer, bindingOffsetHitShader, bindingStride,
+			VK_NULL_HANDLE, 0, 0,
+			width, height, 1);
 
-			VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));
-			submitWork(commandBuffer, queue);
-			vkDeviceWaitIdle(device);
+		VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));
+		submitWork(commandBuffer, queue);
+		vkDeviceWaitIdle(device);
 	}
 
 	void updateUniformBuffers()

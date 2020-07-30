@@ -123,6 +123,7 @@ public:
 		vkDestroyAccelerationStructureNV(device, topLevelAS.accelerationStructure, nullptr);
 		shaderBindingTable.destroy();
 		ubo.destroy();
+		scene.destroy();
 	}
 
 	/*
@@ -535,13 +536,25 @@ public:
 		storageImageDescriptor.imageView = storageImage.view;
 		storageImageDescriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
+		VkDescriptorBufferInfo vertexBufferDescriptor{};
+		vertexBufferDescriptor.buffer = scene.vertices.buffer;
+		vertexBufferDescriptor.range = VK_WHOLE_SIZE;
+
+		VkDescriptorBufferInfo indexBufferDescriptor{};
+		indexBufferDescriptor.buffer = scene.indices.buffer;
+		indexBufferDescriptor.range = VK_WHOLE_SIZE;
+
 		VkWriteDescriptorSet resultImageWrite = vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, &storageImageDescriptor);
 		VkWriteDescriptorSet uniformBufferWrite = vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2, &ubo.descriptor);
+		VkWriteDescriptorSet vertexBufferWrite = vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, &vertexBufferDescriptor);
+		VkWriteDescriptorSet indexBufferWrite = vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4, &indexBufferDescriptor);
 
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 			accelerationStructureWrite,
 			resultImageWrite,
-			uniformBufferWrite
+			uniformBufferWrite,
+			vertexBufferWrite,
+			indexBufferWrite
 		};
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
 	}
@@ -570,10 +583,24 @@ public:
 		uniformBufferBinding.descriptorCount = 1;
 		uniformBufferBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_NV;
 
+		VkDescriptorSetLayoutBinding vertexBufferBinding{};
+		vertexBufferBinding.binding = 3;
+		vertexBufferBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		vertexBufferBinding.descriptorCount = 1;
+		vertexBufferBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV;
+
+		VkDescriptorSetLayoutBinding indexBufferBinding{};
+		indexBufferBinding.binding = 4;
+		indexBufferBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		indexBufferBinding.descriptorCount = 1;
+		indexBufferBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV;
+
 		std::vector<VkDescriptorSetLayoutBinding> bindings({
 			accelerationStructureLayoutBinding,
 			resultImageLayoutBinding,
-			uniformBufferBinding
+			uniformBufferBinding,
+			vertexBufferBinding,
+			indexBufferBinding
 			});
 
 		VkDescriptorSetLayoutCreateInfo layoutInfo{};
@@ -612,10 +639,13 @@ public:
 		}
 
 		// Links shaders and types to ray tracing shader groups
+		// Ray generation shader group
 		groups[INDEX_RAYGEN].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_NV;
 		groups[INDEX_RAYGEN].generalShader = shaderIndexRaygen;
+		// Scene miss shader group
 		groups[INDEX_MISS].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_NV;
 		groups[INDEX_MISS].generalShader = shaderIndexMiss;
+		// Scene closest hit shader group
 		groups[INDEX_CLOSEST_HIT].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_NV;
 		groups[INDEX_CLOSEST_HIT].generalShader = VK_SHADER_UNUSED_NV;
 		groups[INDEX_CLOSEST_HIT].closestHitShader = shaderIndexClosestHit;

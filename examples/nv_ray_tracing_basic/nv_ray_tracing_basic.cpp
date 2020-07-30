@@ -120,13 +120,28 @@ public:
 	}
 
 	/*
+		Submit command buffer to a queue and wait for fence until queue operations have been finished
+	*/
+	void submitWork(VkCommandBuffer cmdBuffer, VkQueue queue)
+	{
+		VkSubmitInfo submitInfo = vks::initializers::submitInfo();
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &cmdBuffer;
+		VkFenceCreateInfo fenceInfo = vks::initializers::fenceCreateInfo();
+		VkFence fence;
+		VK_CHECK_RESULT(vkCreateFence(device, &fenceInfo, nullptr, &fence));
+		VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, fence));
+		VK_CHECK_RESULT(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX));
+		vkDestroyFence(device, fence, nullptr);
+	}
+	/*
 		Set up a storage image that the ray generation shader will be writing to
 	*/
 	void createStorageImage()
 	{
 		VkImageCreateInfo image = vks::initializers::imageCreateInfo();
 		image.imageType = VK_IMAGE_TYPE_2D;
-		image.format = swapChain.colorFormat;
+		image.format = VK_FORMAT_B8G8R8A8_UNORM;
 		image.extent.width = width;
 		image.extent.height = height;
 		image.extent.depth = 1;
@@ -135,7 +150,7 @@ public:
 		image.samples = VK_SAMPLE_COUNT_1_BIT;
 		image.tiling = VK_IMAGE_TILING_OPTIMAL;
 		image.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-		image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		// image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		VK_CHECK_RESULT(vkCreateImage(device, &image, nullptr, &storageImage.image));
 
 		VkMemoryRequirements memReqs;
@@ -148,7 +163,7 @@ public:
 
 		VkImageViewCreateInfo colorImageView = vks::initializers::imageViewCreateInfo();
 		colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		colorImageView.format = swapChain.colorFormat;
+		colorImageView.format = VK_FORMAT_B8G8R8A8_UNORM;
 		colorImageView.subresourceRange = {};
 		colorImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		colorImageView.subresourceRange.baseMipLevel = 0;
@@ -593,19 +608,25 @@ public:
 	*/
 	void buildCommandBuffers()
 	{
+		VkCommandBuffer commandBuffer;
+		VkCommandBufferAllocateInfo cmdBufAllocateInfo =
+			vks::initializers::commandBufferAllocateInfo(cmdPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1);
+		VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &commandBuffer));
+
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
+		// QUESTION: what is this
 		VkImageSubresourceRange subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 
-		for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
-		{
-			VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
+		// for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
+		// {
+			VK_CHECK_RESULT(vkBeginCommandBuffer(commandBuffer, &cmdBufInfo));
 
 			/*
 				Dispatch the ray tracing commands
 			*/
-			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, pipeline);
-			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, pipelineLayout, 0, 1, &descriptorSet, 0, 0);
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, pipeline);
+			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, pipelineLayout, 0, 1, &descriptorSet, 0, 0);
 
 			// Calculate shader binding offsets, which is pretty straight forward in our example
 			VkDeviceSize bindingOffsetRayGenShader = rayTracingProperties.shaderGroupHandleSize * INDEX_RAYGEN;
@@ -613,64 +634,66 @@ public:
 			VkDeviceSize bindingOffsetHitShader = rayTracingProperties.shaderGroupHandleSize * INDEX_CLOSEST_HIT;
 			VkDeviceSize bindingStride = rayTracingProperties.shaderGroupHandleSize;
 
-			vkCmdTraceRaysNV(drawCmdBuffers[i],
+			vkCmdTraceRaysNV(commandBuffer,
 				shaderBindingTable.buffer, bindingOffsetRayGenShader,
 				shaderBindingTable.buffer, bindingOffsetMissShader, bindingStride,
 				shaderBindingTable.buffer, bindingOffsetHitShader, bindingStride,
 				VK_NULL_HANDLE, 0, 0,
 				width, height, 1);
 
-			/*
-				Copy raytracing output to swap chain image
-			*/
+			// /*
+			// 	Copy raytracing output to swap chain image
+			// */
 
-			// Prepare current swapchain image as transfer destination
-			vks::tools::setImageLayout(
-				drawCmdBuffers[i],
-				swapChain.images[i],
-				VK_IMAGE_LAYOUT_UNDEFINED,
-				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-				subresourceRange);
+			// // Prepare current swapchain image as transfer destination
+			// vks::tools::setImageLayout(
+			// 	drawCmdBuffers[i],
+			// 	swapChain.images[i],
+			// 	VK_IMAGE_LAYOUT_UNDEFINED,
+			// 	VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			// 	subresourceRange);
 
-			// Prepare ray tracing output image as transfer source
-			vks::tools::setImageLayout(
-				drawCmdBuffers[i],
-				storageImage.image,
-				VK_IMAGE_LAYOUT_GENERAL,
-				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-				subresourceRange);
+			// // Prepare ray tracing output image as transfer source
+			// vks::tools::setImageLayout(
+			// 	drawCmdBuffers[i],
+			// 	storageImage.image,
+			// 	VK_IMAGE_LAYOUT_GENERAL,
+			// 	VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			// 	subresourceRange);
 
-			VkImageCopy copyRegion{};
-			copyRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-			copyRegion.srcOffset = { 0, 0, 0 };
-			copyRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-			copyRegion.dstOffset = { 0, 0, 0 };
-			copyRegion.extent = { width, height, 1 };
-			vkCmdCopyImage(drawCmdBuffers[i], storageImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChain.images[i], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+			// VkImageCopy copyRegion{};
+			// copyRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+			// copyRegion.srcOffset = { 0, 0, 0 };
+			// copyRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+			// copyRegion.dstOffset = { 0, 0, 0 };
+			// copyRegion.extent = { width, height, 1 };
+			// vkCmdCopyImage(drawCmdBuffers[i], storageImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChain.images[i], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
-			// Transition swap chain image back for presentation
-			vks::tools::setImageLayout(
-				drawCmdBuffers[i],
-				swapChain.images[i],
-				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-				VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-				subresourceRange);
+			// // Transition swap chain image back for presentation
+			// vks::tools::setImageLayout(
+			// 	drawCmdBuffers[i],
+			// 	swapChain.images[i],
+			// 	VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			// 	VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+			// 	subresourceRange);
 
-			// Transition ray tracing output image back to general layout
-			vks::tools::setImageLayout(
-				drawCmdBuffers[i],
-				storageImage.image,
-				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-				VK_IMAGE_LAYOUT_GENERAL,
-				subresourceRange);
+			// // Transition ray tracing output image back to general layout
+			// vks::tools::setImageLayout(
+			// 	drawCmdBuffers[i],
+			// 	storageImage.image,
+			// 	VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			// 	VK_IMAGE_LAYOUT_GENERAL,
+			// 	subresourceRange);
 
 			//@todo: Default render pass setup willl overwrite contents
 			//vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			//drawUI(drawCmdBuffers[i]);
 			//vkCmdEndRenderPass(drawCmdBuffers[i]);
 
-			VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
-		}
+			VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));
+			submitWork(commandBuffer, queue);
+			vkDeviceWaitIdle(device);
+		// }
 	}
 
 	void updateUniformBuffers()
@@ -714,12 +737,153 @@ public:
 
 	void draw()
 	{
-		VulkanExampleBase::prepareFrame();
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
-		VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
-		VulkanExampleBase::submitFrame();
+			
+		/*
+			Copy framebuffer image to host visible image
+		*/
+		const char* imagedata;
+		{
+			// Create the linear tiled destination image to copy to and to read the memory from
+			VkImageCreateInfo imgCreateInfo(vks::initializers::imageCreateInfo());
+			imgCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+			imgCreateInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+			imgCreateInfo.extent.width = width;
+			imgCreateInfo.extent.height = height;
+			imgCreateInfo.extent.depth = 1;
+			imgCreateInfo.arrayLayers = 1;
+			imgCreateInfo.mipLevels = 1;
+			imgCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			imgCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+			imgCreateInfo.tiling = VK_IMAGE_TILING_LINEAR;
+			imgCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+			// Create the image
+			VkImage dstImage;
+			VK_CHECK_RESULT(vkCreateImage(device, &imgCreateInfo, nullptr, &dstImage));
+			// Create memory to back up the image
+			VkMemoryRequirements memRequirements;
+			VkMemoryAllocateInfo memAllocInfo(vks::initializers::memoryAllocateInfo());
+			VkDeviceMemory dstImageMemory;
+			vkGetImageMemoryRequirements(device, dstImage, &memRequirements);
+			memAllocInfo.allocationSize = memRequirements.size;
+			// Memory must be host visible to copy from
+			memAllocInfo.memoryTypeIndex = vulkanDevice->getMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			VK_CHECK_RESULT(vkAllocateMemory(device, &memAllocInfo, nullptr, &dstImageMemory));
+			VK_CHECK_RESULT(vkBindImageMemory(device, dstImage, dstImageMemory, 0));
+
+			// Do the actual blit from the offscreen image to our host visible destination image
+			VkCommandBufferAllocateInfo cmdBufAllocateInfo = vks::initializers::commandBufferAllocateInfo(cmdPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1);
+			VkCommandBuffer copyCmd;
+			VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &copyCmd));
+			VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
+			VK_CHECK_RESULT(vkBeginCommandBuffer(copyCmd, &cmdBufInfo));
+
+			// Transition destination image to transfer destination layout
+			vks::tools::insertImageMemoryBarrier(
+				copyCmd,
+				dstImage,
+				0,
+				VK_ACCESS_TRANSFER_WRITE_BIT,
+				VK_IMAGE_LAYOUT_UNDEFINED,
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				VK_PIPELINE_STAGE_TRANSFER_BIT,
+				VK_PIPELINE_STAGE_TRANSFER_BIT,
+				VkImageSubresourceRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
+
+			// colorAttachment.image is already in VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, and does not need to be transitioned
+
+			VkImageCopy imageCopyRegion{};
+			imageCopyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			imageCopyRegion.srcSubresource.layerCount = 1;
+			imageCopyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			imageCopyRegion.dstSubresource.layerCount = 1;
+			imageCopyRegion.extent.width = width;
+			imageCopyRegion.extent.height = height;
+			imageCopyRegion.extent.depth = 1;
+
+			vkCmdCopyImage(
+				copyCmd,
+				storageImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				1,
+				&imageCopyRegion);
+
+			// Transition destination image to general layout, which is the required layout for mapping the image memory later on
+			vks::tools::insertImageMemoryBarrier(
+				copyCmd,
+				dstImage,
+				VK_ACCESS_TRANSFER_WRITE_BIT,
+				VK_ACCESS_MEMORY_READ_BIT,
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				VK_IMAGE_LAYOUT_GENERAL,
+				VK_PIPELINE_STAGE_TRANSFER_BIT,
+				VK_PIPELINE_STAGE_TRANSFER_BIT,
+				VkImageSubresourceRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
+
+			VK_CHECK_RESULT(vkEndCommandBuffer(copyCmd));
+
+			submitWork(copyCmd, queue);
+
+			// Get layout of the image (including row pitch)
+			VkImageSubresource subResource{};
+			subResource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			VkSubresourceLayout subResourceLayout;
+
+			vkGetImageSubresourceLayout(device, dstImage, &subResource, &subResourceLayout);
+
+			// Map image memory so we can start copying from it
+			vkMapMemory(device, dstImageMemory, 0, VK_WHOLE_SIZE, 0, (void**)&imagedata);
+			imagedata += subResourceLayout.offset;
+
+		/*
+			Save host visible framebuffer image to disk (ppm format)
+		*/
+
+			const char* filename = "nv_trace.ppm";
+			std::ofstream file(filename, std::ios::out | std::ios::binary);
+
+			// ppm header
+			file << "P6\n" << width << "\n" << height << "\n" << 255 << "\n";
+
+			// If source is BGR (destination is always RGB) and we can't use blit (which does automatic conversion), we'll have to manually swizzle color components
+			// Check if source is BGR and needs swizzle
+			std::vector<VkFormat> formatsBGR = { VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_B8G8R8A8_SNORM };
+			const bool colorSwizzle = (std::find(formatsBGR.begin(), formatsBGR.end(), VK_FORMAT_R8G8B8A8_UNORM) != formatsBGR.end());
+
+			// ppm binary pixel data
+			for (int32_t y = 0; y < height; y++) {
+				unsigned int *row = (unsigned int*)imagedata;
+				for (int32_t x = 0; x < width; x++) {
+					if (colorSwizzle) {
+						file.write((char*)row + 2, 1);
+						file.write((char*)row + 1, 1);
+						file.write((char*)row, 1);
+					}
+					else {
+						file.write((char*)row, 3);
+					}
+					row++;
+				}
+				imagedata += subResourceLayout.rowPitch;
+			}
+			file.close();
+
+			// Clean up resources
+			vkUnmapMemory(device, dstImageMemory);
+			vkFreeMemory(device, dstImageMemory, nullptr);
+			vkDestroyImage(device, dstImage, nullptr);
+		}
+
+		vkQueueWaitIdle(queue);
 	}
+
+
+			
+		// VulkanExampleBase::prepareFrame();
+		// submitInfo.commandBufferCount = 1;
+		// submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
+		// VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
+		// VulkanExampleBase::submitFrame();
+	
 
 	virtual void render()
 	{

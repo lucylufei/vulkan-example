@@ -25,68 +25,17 @@ VkResult VulkanExampleBase::createInstance(bool enableValidation)
 	appInfo.pEngineName = name.c_str();
 	appInfo.apiVersion = apiVersion;
 
-	std::vector<const char*> instanceExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
-
-	// Enable surface extensions depending on os
-#if defined(_WIN32)
-	instanceExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
-	instanceExtensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
-#elif defined(_DIRECT2DISPLAY)
-	instanceExtensions.push_back(VK_KHR_DISPLAY_EXTENSION_NAME);
-#elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
-	instanceExtensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
-#elif defined(VK_USE_PLATFORM_XCB_KHR)
-	instanceExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
-#elif defined(VK_USE_PLATFORM_IOS_MVK)
-	instanceExtensions.push_back(VK_MVK_IOS_SURFACE_EXTENSION_NAME);
-#elif defined(VK_USE_PLATFORM_MACOS_MVK)
-	instanceExtensions.push_back(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
-#endif
-
-	if (enabledInstanceExtensions.size() > 0) {
-		for (auto enabledExtension : enabledInstanceExtensions) {
-			instanceExtensions.push_back(enabledExtension);
-		}
-	}
-
+	/*
+		Vulkan instance creation (without surface extensions)
+	*/
 	VkInstanceCreateInfo instanceCreateInfo = {};
 	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	instanceCreateInfo.pNext = NULL;
 	instanceCreateInfo.pApplicationInfo = &appInfo;
-	if (instanceExtensions.size() > 0)
-	{
-		if (settings.validation)
-		{
-			instanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-		}
-		instanceCreateInfo.enabledExtensionCount = (uint32_t)instanceExtensions.size();
-		instanceCreateInfo.ppEnabledExtensionNames = instanceExtensions.data();
-	}
-	if (settings.validation)
-	{
-		// The VK_LAYER_KHRONOS_validation contains all current validation functionality.
-		// Note that on Android this layer requires at least NDK r20
-		const char* validationLayerName = "VK_LAYER_KHRONOS_validation";
-		// Check if this layer is available at instance level
-		uint32_t instanceLayerCount;
-		vkEnumerateInstanceLayerProperties(&instanceLayerCount, nullptr);
-		std::vector<VkLayerProperties> instanceLayerProperties(instanceLayerCount);
-		vkEnumerateInstanceLayerProperties(&instanceLayerCount, instanceLayerProperties.data());
-		bool validationLayerPresent = false;
-		for (VkLayerProperties layer : instanceLayerProperties) {
-			if (strcmp(layer.layerName, validationLayerName) == 0) {
-				validationLayerPresent = true;
-				break;
-			}
-		}
-		if (validationLayerPresent) {
-			instanceCreateInfo.ppEnabledLayerNames = &validationLayerName;
-			instanceCreateInfo.enabledLayerCount = 1;
-		} else {
-			std::cerr << "Validation layer VK_LAYER_KHRONOS_validation not present, validation is disabled";
-		}
-	}
+
+	uint32_t layerCount = 0;
+	const char* validationLayers[] = { "VK_LAYER_LUNARG_standard_validation" };
+	layerCount = 1;
+
 	return vkCreateInstance(&instanceCreateInfo, nullptr, &instance);
 }
 
@@ -146,9 +95,9 @@ void VulkanExampleBase::prepare()
 	if (vulkanDevice->enableDebugMarkers) {
 		vks::debugmarker::setup(device);
 	}
-	initSwapchain();
+	// initSwapchain();
 	createCommandPool();
-	setupSwapChain();
+	// setupSwapChain();
 	createCommandBuffers();
 	createSynchronizationPrimitives();
 	setupDepthStencil();
@@ -839,56 +788,6 @@ bool VulkanExampleBase::initVulkan()
 	// Defaults to the first device unless specified by command line
 	uint32_t selectedDevice = 0;
 
-#if !defined(VK_USE_PLATFORM_ANDROID_KHR)
-	// GPU selection via command line argument
-	for (size_t i = 0; i < args.size(); i++)
-	{
-		// Select GPU
-		if ((args[i] == std::string("-g")) || (args[i] == std::string("-gpu")))
-		{
-			char* endptr;
-			uint32_t index = strtol(args[i + 1], &endptr, 10);
-			if (endptr != args[i + 1])
-			{
-				if (index > gpuCount - 1)
-				{
-					std::cerr << "Selected device index " << index << " is out of range, reverting to device 0 (use -listgpus to show available Vulkan devices)" << std::endl;
-				}
-				else
-				{
-					std::cout << "Selected Vulkan device " << index << std::endl;
-					selectedDevice = index;
-				}
-			};
-			break;
-		}
-		// List available GPUs
-		if (args[i] == std::string("-listgpus"))
-		{
-			uint32_t gpuCount = 0;
-			VK_CHECK_RESULT(vkEnumeratePhysicalDevices(instance, &gpuCount, nullptr));
-			if (gpuCount == 0)
-			{
-				std::cerr << "No Vulkan devices found!" << std::endl;
-			}
-			else
-			{
-				// Enumerate devices
-				std::cout << "Available Vulkan devices" << std::endl;
-				std::vector<VkPhysicalDevice> devices(gpuCount);
-				VK_CHECK_RESULT(vkEnumeratePhysicalDevices(instance, &gpuCount, devices.data()));
-				for (uint32_t i = 0; i < gpuCount; i++) {
-					VkPhysicalDeviceProperties deviceProperties;
-					vkGetPhysicalDeviceProperties(devices[i], &deviceProperties);
-					std::cout << "Device [" << i << "] : " << deviceProperties.deviceName << std::endl;
-					std::cout << " Type: " << vks::tools::physicalDeviceTypeString(deviceProperties.deviceType) << std::endl;
-					std::cout << " API: " << (deviceProperties.apiVersion >> 22) << "." << ((deviceProperties.apiVersion >> 12) & 0x3ff) << "." << (deviceProperties.apiVersion & 0xfff) << std::endl;
-				}
-			}
-		}
-	}
-#endif
-
 	physicalDevice = physicalDevices[selectedDevice];
 
 	// Store properties (including limits), features and memory properties of the phyiscal device (so that examples can check against them)
@@ -903,7 +802,7 @@ bool VulkanExampleBase::initVulkan()
 	// This is handled by a separate class that gets a logical device representation
 	// and encapsulates functions related to a device
 	vulkanDevice = new vks::VulkanDevice(physicalDevice);
-	VkResult res = vulkanDevice->createLogicalDevice(enabledFeatures, enabledDeviceExtensions, deviceCreatepNextChain);
+	VkResult res = vulkanDevice->createLogicalDevice(enabledFeatures, enabledDeviceExtensions, deviceCreatepNextChain, false);
 	if (res != VK_SUCCESS) {
 		vks::tools::exitFatal("Could not create Vulkan device: \n" + vks::tools::errorString(res), res);
 		return false;
@@ -917,41 +816,6 @@ bool VulkanExampleBase::initVulkan()
 	VkBool32 validDepthFormat = vks::tools::getSupportedDepthFormat(physicalDevice, &depthFormat);
 	assert(validDepthFormat);
 
-	swapChain.connect(instance, physicalDevice, device);
-
-	// Create synchronization objects
-	VkSemaphoreCreateInfo semaphoreCreateInfo = vks::initializers::semaphoreCreateInfo();
-	// Create a semaphore used to synchronize image presentation
-	// Ensures that the image is displayed before we start submitting new commands to the queu
-	VK_CHECK_RESULT(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &semaphores.presentComplete));
-	// Create a semaphore used to synchronize command submission
-	// Ensures that the image is not presented until all commands have been sumbitted and executed
-	VK_CHECK_RESULT(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &semaphores.renderComplete));
-
-	// Set up submit info structure
-	// Semaphores will stay the same during application lifetime
-	// Command buffer submission info is set by each example
-	submitInfo = vks::initializers::submitInfo();
-	submitInfo.pWaitDstStageMask = &submitPipelineStages;
-	submitInfo.waitSemaphoreCount = 1;
-	submitInfo.pWaitSemaphores = &semaphores.presentComplete;
-	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = &semaphores.renderComplete;
-
-#if defined(VK_USE_PLATFORM_ANDROID_KHR)
-	// Get Android device name and manufacturer (to display along GPU name)
-	androidProduct = "";
-	char prop[PROP_VALUE_MAX+1];
-	int len = __system_property_get("ro.product.manufacturer", prop);
-	if (len > 0) {
-		androidProduct += std::string(prop) + " ";
-	};
-	len = __system_property_get("ro.product.model", prop);
-	if (len > 0) {
-		androidProduct += std::string(prop);
-	};
-	LOGD("androidProduct = %s", androidProduct.c_str());
-#endif
 
 	return true;
 }
@@ -1975,7 +1839,7 @@ void VulkanExampleBase::createCommandPool()
 {
 	VkCommandPoolCreateInfo cmdPoolInfo = {};
 	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	cmdPoolInfo.queueFamilyIndex = swapChain.queueNodeIndex;
+	cmdPoolInfo.queueFamilyIndex = vulkanDevice->queueFamilyIndices.graphics;
 	cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 	VK_CHECK_RESULT(vkCreateCommandPool(device, &cmdPoolInfo, nullptr, &cmdPool));
 }

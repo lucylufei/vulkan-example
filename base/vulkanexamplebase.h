@@ -437,7 +437,7 @@ int main(const int argc, const char *argv[])													    \
 	vulkanExample->initVulkan();																	\
 	vulkanExample->setupWindow();					 												\
 	vulkanExample->prepare();																		\
-	vulkanExample->renderLoop();																	\
+	vulkanExample->draw(); /* vulkanExample->renderLoop();	*/																\
 	delete(vulkanExample);																			\
 	return 0;																						\
 }

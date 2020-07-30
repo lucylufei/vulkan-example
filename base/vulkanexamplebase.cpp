@@ -650,6 +650,15 @@ VulkanExampleBase::VulkanExampleBase(bool enableValidation)
 		if ((args[i] == std::string("-bt")) || (args[i] == std::string("--benchframetimes"))) {
 			benchmark.outputFrameTimes = true;
 		}
+		
+		// Enter model
+		if ((args[i] == std::string("-m")) || (args[i] == std::string("--model"))) {
+			
+			if (args.size() > i + 1) {
+				model_name = args[i + 1];
+			}
+			std::cout << "Selected " << model_name << std::endl;
+		}
 	}
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)

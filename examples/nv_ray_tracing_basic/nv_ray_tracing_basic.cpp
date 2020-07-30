@@ -21,6 +21,7 @@
 #include "vulkanexamplebase.h"
 #include "VulkanDevice.hpp"
 #include "VulkanBuffer.hpp"
+#include "VulkanModel.hpp"
 
 // Ray tracing acceleration structure
 struct AccelerationStructure {
@@ -64,9 +65,6 @@ public:
 	AccelerationStructure bottomLevelAS;
 	AccelerationStructure topLevelAS;
 
-	vks::Buffer vertexBuffer;
-	vks::Buffer indexBuffer;
-	uint32_t indexCount;
 	vks::Buffer shaderBindingTable;
 
 	struct StorageImage {
@@ -86,6 +84,16 @@ public:
 	VkPipelineLayout pipelineLayout;
 	VkDescriptorSet descriptorSet;
 	VkDescriptorSetLayout descriptorSetLayout;
+	
+	vks::VertexLayout vertexLayout = vks::VertexLayout({
+		vks::VERTEX_COMPONENT_POSITION,
+		vks::VERTEX_COMPONENT_NORMAL,
+		vks::VERTEX_COMPONENT_COLOR,
+		vks::VERTEX_COMPONENT_UV,
+		vks::VERTEX_COMPONENT_DUMMY_FLOAT
+	});
+	vks::Model scene;
+
 
 	VulkanExample() : VulkanExampleBase()
 	{
@@ -113,8 +121,6 @@ public:
 		vkFreeMemory(device, topLevelAS.memory, nullptr);
 		vkDestroyAccelerationStructureNV(device, bottomLevelAS.accelerationStructure, nullptr);
 		vkDestroyAccelerationStructureNV(device, topLevelAS.accelerationStructure, nullptr);
-		vertexBuffer.destroy();
-		indexBuffer.destroy();
 		shaderBindingTable.destroy();
 		ubo.destroy();
 	}
@@ -263,6 +269,7 @@ public:
 	*/
 	void createScene()
 	{
+		#ifdef TRIANGLE
 		// Setup vertices for a single triangle
 		struct Vertex {
 			float pos[3];
@@ -316,6 +323,39 @@ public:
 		geometry.geometry.aabbs.sType = { VK_STRUCTURE_TYPE_GEOMETRY_AABB_NV };
 		geometry.flags = VK_GEOMETRY_OPAQUE_BIT_NV;
 
+		#else
+		// Instead of a simple triangle, we'll be loading a more complex scene for this example
+		vks::ModelCreateInfo modelCI{};
+		modelCI.scale = glm::vec3(0.25f);
+		// The shaders are accessing the vertex and index buffers of the scene, so the proper usage flag has to be set
+		modelCI.memoryPropertyFlags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+		
+		std::string model_file_path = "models/" + model_name + ".dae";
+		scene.loadFromFile(getAssetPath() + model_file_path, vertexLayout, &modelCI, vulkanDevice, queue);
+		std::cout << "Rendering " << model_name << std::endl;
+
+		/*
+			Create the bottom level acceleration structure containing the actual scene geometry
+		*/
+		VkGeometryNV geometry{};
+		geometry.sType = VK_STRUCTURE_TYPE_GEOMETRY_NV;
+		geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_NV;
+		geometry.geometry.triangles.sType = VK_STRUCTURE_TYPE_GEOMETRY_TRIANGLES_NV;
+		geometry.geometry.triangles.vertexData = scene.vertices.buffer;
+		geometry.geometry.triangles.vertexOffset = 0;
+		geometry.geometry.triangles.vertexCount = static_cast<uint32_t>(scene.vertexCount);
+		geometry.geometry.triangles.vertexStride = vertexLayout.stride();
+		geometry.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+		geometry.geometry.triangles.indexData = scene.indices.buffer;
+		geometry.geometry.triangles.indexOffset = 0;
+		geometry.geometry.triangles.indexCount = scene.indexCount;
+		geometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
+		geometry.geometry.triangles.transformData = VK_NULL_HANDLE;
+		geometry.geometry.triangles.transformOffset = 0;
+		geometry.geometry.aabbs = {};
+		geometry.geometry.aabbs.sType = { VK_STRUCTURE_TYPE_GEOMETRY_AABB_NV };
+		geometry.flags = VK_GEOMETRY_OPAQUE_BIT_NV;
+		#endif
 		createBottomLevelAccelerationStructure(&geometry);
 
 		/*
@@ -895,4 +935,25 @@ public:
 	}
 };
 
-VULKAN_EXAMPLE_MAIN()
+VulkanExample *vulkanExample;																		\
+static void handleEvent(const xcb_generic_event_t *event)											\
+{																									\
+	if (vulkanExample != NULL)																		\
+	{																								\
+		vulkanExample->handleEvent(event);															\
+	}																								\
+}																									\
+int main(const int argc, const char *argv[])													    \
+{																									\
+	for (size_t i = 0; i < argc; i++) { 
+		VulkanExample::args.push_back(argv[i]); 
+	}; 
+	vulkanExample = new VulkanExample();															\
+	vulkanExample->initVulkan();																	\
+	vulkanExample->setupWindow();					 												\
+	vulkanExample->prepare();																		\
+	vulkanExample->draw(); /* vulkanExample->renderLoop();	*/																\
+	delete(vulkanExample);																			\
+	return 0;																						\
+}
+

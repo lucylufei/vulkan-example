@@ -139,6 +139,8 @@ public:
 	bool prepared = false;
 	uint32_t width = 1280;
 	uint32_t height = 720;
+	
+	std::string model_name = "chinesedragon";
 
 	vks::UIOverlay UIOverlay;
 

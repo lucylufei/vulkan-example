@@ -161,7 +161,6 @@ public:
 		image.samples = VK_SAMPLE_COUNT_1_BIT;
 		image.tiling = VK_IMAGE_TILING_OPTIMAL;
 		image.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-		// image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		VK_CHECK_RESULT(vkCreateImage(device, &image, nullptr, &storageImage.image));
 
 		VkMemoryRequirements memReqs;
@@ -307,6 +306,8 @@ public:
 		geometry.geometry.aabbs = {};
 		geometry.geometry.aabbs.sType = { VK_STRUCTURE_TYPE_GEOMETRY_AABB_NV };
 		geometry.flags = VK_GEOMETRY_OPAQUE_BIT_NV;
+
+		std::cout << "Vertex count: " << scene.vertexCount << std::endl;
 
 		createBottomLevelAccelerationStructure(&geometry);
 
@@ -663,6 +664,9 @@ public:
 		VkDeviceSize bindingOffsetHitShader = rayTracingProperties.shaderGroupHandleSize * INDEX_CLOSEST_HIT;
 		VkDeviceSize bindingStride = rayTracingProperties.shaderGroupHandleSize;
 
+		runtime = 0.0;
+		auto tStart = std::chrono::high_resolution_clock::now();
+
 		vkCmdTraceRaysNV(commandBuffer,
 			shaderBindingTable.buffer, bindingOffsetRayGenShader,
 			shaderBindingTable.buffer, bindingOffsetMissShader, bindingStride,
@@ -670,9 +674,11 @@ public:
 			VK_NULL_HANDLE, 0, 0,
 			width, height, 1);
 
+
 		VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));
 		submitWork(commandBuffer, queue);
 		vkDeviceWaitIdle(device);
+		runtime = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - tStart).count();
 	}
 
 	void updateUniformBuffers()
@@ -695,6 +701,7 @@ public:
 		deviceProps2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
 		deviceProps2.pNext = &rayTracingProperties;
 		vkGetPhysicalDeviceProperties2(physicalDevice, &deviceProps2);
+		std::cout << "GPU: " << deviceProperties.deviceName << std::endl;
 
 		// Get VK_NV_ray_tracing related function pointers
 		vkCreateAccelerationStructureNV = reinterpret_cast<PFN_vkCreateAccelerationStructureNV>(vkGetDeviceProcAddr(device, "vkCreateAccelerationStructureNV"));
@@ -720,7 +727,8 @@ public:
 	void draw()
 	{
 		std::cout << "Drawing." << std::endl;
-			
+
+
 		/*
 			Copy framebuffer image to host visible image
 		*/
@@ -870,27 +878,36 @@ public:
 	}
 };
 
-VulkanExample *vulkanExample;																		\
-static void handleEvent(const xcb_generic_event_t *event)											\
-{																									\
-	if (vulkanExample != NULL)																		\
-	{																								\
-		vulkanExample->handleEvent(event);															\
-	}																								\
-}																									\
-int main(const int argc, const char *argv[])													    \
-{																									\
+VulkanExample *vulkanExample;
+static void handleEvent(const xcb_generic_event_t *event)
+{
+	if (vulkanExample != NULL)
+	{
+		vulkanExample->handleEvent(event);
+	}
+}
+int main(const int argc, const char *argv[])
+{
 	for (size_t i = 0; i < argc; i++) { 
 		VulkanExample::args.push_back(argv[i]); 
 	}; 
 	
 	std::cout << "(recursive trace)" << std::endl;
-	vulkanExample = new VulkanExample();															\
-	vulkanExample->initVulkan();																	\
-	vulkanExample->setupWindow();					 												\
-	vulkanExample->prepare();																		\
-	vulkanExample->draw(); /* vulkanExample->renderLoop();	*/																\
-	delete(vulkanExample);																			\
-	return 0;																						\
+	vulkanExample = new VulkanExample();
+	vulkanExample->initVulkan();
+	vulkanExample->setupWindow();
+	vulkanExample->prepare();
+	
+
+	vulkanExample->draw(); /* vulkanExample->renderLoop();	*/
+	
+	unsigned total_rays = vulkanExample->width * vulkanExample->height;
+	std::cout << "Total rays: " << vulkanExample->width << "x" << vulkanExample->height << "x" << 1 << "= " << total_rays << std::endl;
+	std::cout << "Runtime: " << (vulkanExample->runtime / 1000.0) << "s" << std::endl;
+	std::cout << "Rays/s: " << total_rays/(vulkanExample->runtime / 1000.0) << std::endl;
+	
+	delete(vulkanExample);
+	
+	return 0;
 }
 

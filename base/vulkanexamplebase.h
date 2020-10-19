@@ -141,6 +141,7 @@ public:
 	uint32_t height = 720;
 	
 	std::string model_name = "chinesedragon";
+	double runtime = 0.0;
 
 	vks::UIOverlay UIOverlay;
 

@@ -157,7 +157,6 @@ public:
 		image.samples = VK_SAMPLE_COUNT_1_BIT;
 		image.tiling = VK_IMAGE_TILING_OPTIMAL;
 		image.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-		// image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		VK_CHECK_RESULT(vkCreateImage(device, &image, nullptr, &storageImage.image));
 
 		VkMemoryRequirements memReqs;
@@ -358,6 +357,8 @@ public:
 		geometry.geometry.aabbs = {};
 		geometry.geometry.aabbs.sType = { VK_STRUCTURE_TYPE_GEOMETRY_AABB_NV };
 		geometry.flags = VK_GEOMETRY_OPAQUE_BIT_NV;
+
+		std::cout << "Vertex count: " << scene.vertexCount << std::endl;
 		#endif
 		createBottomLevelAccelerationStructure(&geometry);
 
@@ -692,82 +693,35 @@ public:
 		// QUESTION: what is this
 		VkImageSubresourceRange subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 
-		// for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
-		// {
-			VK_CHECK_RESULT(vkBeginCommandBuffer(commandBuffer, &cmdBufInfo));
+		VK_CHECK_RESULT(vkBeginCommandBuffer(commandBuffer, &cmdBufInfo));
 
-			/*
-				Dispatch the ray tracing commands
-			*/
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, pipeline);
-			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, pipelineLayout, 0, 1, &descriptorSet, 0, 0);
+		/*
+			Dispatch the ray tracing commands
+		*/
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, pipeline);
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, pipelineLayout, 0, 1, &descriptorSet, 0, 0);
 
-			// Calculate shader binding offsets, which is pretty straight forward in our example
-			VkDeviceSize bindingOffsetRayGenShader = rayTracingProperties.shaderGroupHandleSize * INDEX_RAYGEN;
-			VkDeviceSize bindingOffsetMissShader = rayTracingProperties.shaderGroupHandleSize * INDEX_MISS;
-			VkDeviceSize bindingOffsetHitShader = rayTracingProperties.shaderGroupHandleSize * INDEX_CLOSEST_HIT;
-			VkDeviceSize bindingStride = rayTracingProperties.shaderGroupHandleSize;
+		// Calculate shader binding offsets, which is pretty straight forward in our example
+		VkDeviceSize bindingOffsetRayGenShader = rayTracingProperties.shaderGroupHandleSize * INDEX_RAYGEN;
+		VkDeviceSize bindingOffsetMissShader = rayTracingProperties.shaderGroupHandleSize * INDEX_MISS;
+		VkDeviceSize bindingOffsetHitShader = rayTracingProperties.shaderGroupHandleSize * INDEX_CLOSEST_HIT;
+		VkDeviceSize bindingStride = rayTracingProperties.shaderGroupHandleSize;
 
-			vkCmdTraceRaysNV(commandBuffer,
-				shaderBindingTable.buffer, bindingOffsetRayGenShader,
-				shaderBindingTable.buffer, bindingOffsetMissShader, bindingStride,
-				shaderBindingTable.buffer, bindingOffsetHitShader, bindingStride,
-				VK_NULL_HANDLE, 0, 0,
-				width, height, 1);
+		runtime = 0.0;
+		auto tStart = std::chrono::high_resolution_clock::now();
 
-			// /*
-			// 	Copy raytracing output to swap chain image
-			// */
+		vkCmdTraceRaysNV(commandBuffer,
+			shaderBindingTable.buffer, bindingOffsetRayGenShader,
+			shaderBindingTable.buffer, bindingOffsetMissShader, bindingStride,
+			shaderBindingTable.buffer, bindingOffsetHitShader, bindingStride,
+			VK_NULL_HANDLE, 0, 0,
+			width, height, 1);
 
-			// // Prepare current swapchain image as transfer destination
-			// vks::tools::setImageLayout(
-			// 	drawCmdBuffers[i],
-			// 	swapChain.images[i],
-			// 	VK_IMAGE_LAYOUT_UNDEFINED,
-			// 	VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			// 	subresourceRange);
 
-			// // Prepare ray tracing output image as transfer source
-			// vks::tools::setImageLayout(
-			// 	drawCmdBuffers[i],
-			// 	storageImage.image,
-			// 	VK_IMAGE_LAYOUT_GENERAL,
-			// 	VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			// 	subresourceRange);
-
-			// VkImageCopy copyRegion{};
-			// copyRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-			// copyRegion.srcOffset = { 0, 0, 0 };
-			// copyRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-			// copyRegion.dstOffset = { 0, 0, 0 };
-			// copyRegion.extent = { width, height, 1 };
-			// vkCmdCopyImage(drawCmdBuffers[i], storageImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapChain.images[i], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
-
-			// // Transition swap chain image back for presentation
-			// vks::tools::setImageLayout(
-			// 	drawCmdBuffers[i],
-			// 	swapChain.images[i],
-			// 	VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			// 	VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-			// 	subresourceRange);
-
-			// // Transition ray tracing output image back to general layout
-			// vks::tools::setImageLayout(
-			// 	drawCmdBuffers[i],
-			// 	storageImage.image,
-			// 	VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			// 	VK_IMAGE_LAYOUT_GENERAL,
-			// 	subresourceRange);
-
-			//@todo: Default render pass setup willl overwrite contents
-			//vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			//drawUI(drawCmdBuffers[i]);
-			//vkCmdEndRenderPass(drawCmdBuffers[i]);
-
-			VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));
-			submitWork(commandBuffer, queue);
-			vkDeviceWaitIdle(device);
-		// }
+		VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer));
+		submitWork(commandBuffer, queue);
+		vkDeviceWaitIdle(device);
+		runtime = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - tStart).count();
 	}
 
 	void updateUniformBuffers()
@@ -787,6 +741,7 @@ public:
 		deviceProps2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
 		deviceProps2.pNext = &rayTracingProperties;
 		vkGetPhysicalDeviceProperties2(physicalDevice, &deviceProps2);
+		std::cout << "GPU: " << deviceProperties.deviceName << std::endl;
 
 		// Get VK_NV_ray_tracing related function pointers
 		vkCreateAccelerationStructureNV = reinterpret_cast<PFN_vkCreateAccelerationStructureNV>(vkGetDeviceProcAddr(device, "vkCreateAccelerationStructureNV"));
@@ -812,7 +767,8 @@ public:
 	void draw()
 	{
 		std::cout << "Drawing." << std::endl;
-			
+
+
 		/*
 			Copy framebuffer image to host visible image
 		*/
@@ -952,15 +908,6 @@ public:
 		vkQueueWaitIdle(queue);
 	}
 
-
-			
-		// VulkanExampleBase::prepareFrame();
-		// submitInfo.commandBufferCount = 1;
-		// submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
-		// VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
-		// VulkanExampleBase::submitFrame();
-	
-
 	virtual void render()
 	{
 		if (!prepared)
@@ -971,27 +918,36 @@ public:
 	}
 };
 
-VulkanExample *vulkanExample;																		\
-static void handleEvent(const xcb_generic_event_t *event)											\
-{																									\
-	if (vulkanExample != NULL)																		\
-	{																								\
-		vulkanExample->handleEvent(event);															\
-	}																								\
-}																									\
-int main(const int argc, const char *argv[])													    \
-{																									\
+VulkanExample *vulkanExample;
+static void handleEvent(const xcb_generic_event_t *event)
+{
+	if (vulkanExample != NULL)
+	{
+		vulkanExample->handleEvent(event);
+	}
+}
+int main(const int argc, const char *argv[])
+{
 	for (size_t i = 0; i < argc; i++) { 
 		VulkanExample::args.push_back(argv[i]); 
 	}; 
 	
 	std::cout << "(single non-recursive trace)" << std::endl;
-	vulkanExample = new VulkanExample();															\
-	vulkanExample->initVulkan();																	\
-	vulkanExample->setupWindow();					 												\
-	vulkanExample->prepare();																		\
-	vulkanExample->draw(); /* vulkanExample->renderLoop();	*/																\
-	delete(vulkanExample);																			\
-	return 0;																						\
+	vulkanExample = new VulkanExample();
+	vulkanExample->initVulkan();
+	vulkanExample->setupWindow();
+	vulkanExample->prepare();
+	
+
+	vulkanExample->draw(); /* vulkanExample->renderLoop();	*/
+	
+	unsigned total_rays = vulkanExample->width * vulkanExample->height;
+	std::cout << "Total rays: " << vulkanExample->width << "x" << vulkanExample->height << "x" << 1 << "= " << total_rays << std::endl;
+	std::cout << "Runtime: " << (vulkanExample->runtime / 1000.0) << "s" << std::endl;
+	std::cout << "Rays/s: " << total_rays/(vulkanExample->runtime / 1000.0) << std::endl;
+	
+	delete(vulkanExample);
+	
+	return 0;
 }
 
